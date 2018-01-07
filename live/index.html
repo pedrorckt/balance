@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JOGO of the GDG</title>
+</head>
+<body>
+  
+  <style>
+    body {margin: 0; padding: 0;}
+  </style>
+  
+  <script src="three.min.js"></script>
+  <script src="physi.js"></script>
+  <script>
+    
+    var currentBox = null;
+    
+    Physijs.scripts.worker = "physijs_worker.js";
+    Physijs.scripts.ammo = "ammo.js";
+  
+    // scene
+    var scene = new Physijs.Scene();
+    scene.setGravity( new THREE.Vector3(0, -30, 0) );
+    
+    // camera
+    var camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 200);
+    
+    camera.position.set(0,50,50);
+    scene.add(camera);
+    
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    document.body.appendChild(renderer.domElement);
+    
+    var geos = {};
+    var mats = {};
+    var meshs = {};
+    
+    // ground
+    geos.piso = new THREE.BoxGeometry(50,1,20);
+    // https://github.com/chandlerprall/Physijs/wiki/Materials
+    mats.piso = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({color: 0x900090}), 0.8, 0.3
+    );
+    meshs.piso = new Physijs.BoxMesh(geos.piso, mats.piso, 0); // Physi
+    meshs.piso.position.y = -0.5;
+    meshs.piso.name = "piso";
+    scene.add(meshs.piso);
+    
+    // suporte
+    geos.stand = new THREE.BoxGeometry(5,10,5);
+    // https://github.com/chandlerprall/Physijs/wiki/Materials
+    mats.stand = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({color: 0x009090}), 0.8, 0.3
+    );
+    meshs.stand = new Physijs.BoxMesh(geos.stand, mats.stand); // Physi
+    meshs.stand.position.y = 7;
+    scene.add(meshs.stand);
+    
+    // trave
+    geos.bar = new THREE.BoxGeometry(50,3,3);
+    // https://github.com/chandlerprall/Physijs/wiki/Materials
+    mats.bar = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({color: 0x909000}), 0.8, 0.3
+    );
+    meshs.bar = new Physijs.BoxMesh(geos.bar, mats.bar); // Physi
+    meshs.bar.position.y = 15;
+    scene.add(meshs.bar);
+    
+    camera.lookAt(meshs.stand.position);
+    
+    var ambient = new THREE.AmbientLight(0x909090);
+    scene.add(ambient);
+    
+    // logica
+    
+    meshs.bar.addEventListener('collision', function(other) {
+      console.log(other, "hit");
+      if (other.name == "piso") {
+        alert("GAME OVER");
+      }
+    });
+    
+    // mouse to world
+    function positionFromCursor(event) {
+      var x = (event.clientX/window.innerWidth) * 2 - 1;
+      var y = - (event.clientY/window.innerHeight) * 2 + 1;
+      var vector = new THREE.Vector3(x,y,0);
+      vector.unproject(camera);
+      var dir = vector.sub(camera.position).normalize();
+      var dis = - camera.position.z / dir.z;
+      return camera.position.clone().add(dir.multiplyScalar(dis));
+    }
+    
+    function handleClick(event) {
+      if (currentBox == null) return;
+      
+      // cubo
+      geos.cubo = new THREE.BoxGeometry(4,4,4);
+      // https://github.com/chandlerprall/Physijs/wiki/Materials
+      mats.cubo = Physijs.createMaterial(
+        new THREE.MeshLambertMaterial({color: 0x909000}), 0.8, 0.3
+      );
+      meshs.cubo = new Physijs.BoxMesh(geos.cubo, mats.cubo); // Physi
+      meshs.cubo.position.set(currentBox.position.x, currentBox.position.y, 0);
+      scene.remove(currentBox);
+      currentBox = null;
+      scene.add(meshs.cubo);
+      
+    }
+    
+    function createBox(event) {
+      // temp
+      var pos = positionFromCursor(event);
+      geos.temp = new THREE.BoxGeometry(4,4,4);
+      mats.temp = new THREE.MeshLambertMaterial({color: 0x909000});
+      meshs.temp = new THREE.Mesh(geos.temp, mats.temp);
+      meshs.temp.position.set(pos.x, pos.y, 0);
+      currentBox = meshs.temp;
+      scene.add(currentBox);
+    }
+    
+    // ao mover o mouse
+    function handleMove(event) {
+      if (currentBox == null) {
+        createBox(event);
+      }
+      var pos = positionFromCursor(event);
+      currentBox.position.set(pos.x, pos.y, pos.z);
+    }
+    
+    // bind
+    document.body.addEventListener("mousedown", handleClick);
+    document.body.addEventListener("mousemove", handleMove);
+    
+    function render() {
+      scene.simulate();
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    
+    render();
+    
+  </script>
+  
+</body>
+</html>
