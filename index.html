@@ -6,15 +6,25 @@
 </head>
 <body>
 
-  <!--<audio src="track.mp3" autoplay="autoplay" loop="loop"></audio>-->
+  <audio src="audio/Tobaggan.mp3" autoplay loop></audio>
+  <audio src="audio/Pop.mp3" id="pop"></audio>
+  <audio src="audio/Junk_Crash.mp3" id="fuein"></audio>
+
+  <link href="https://fonts.googleapis.com/css?family=Passion+One" rel="stylesheet">
 
   <style>
-    body {margin: 0; padding: 0;}
-    #score {position: absolute; left: 0; right: 0; top: 20px; text-align: center; z-index: 10;}
+    body {margin: 0; padding: 0; font-family: 'Passion One', sans-serif; font-size: 96px; color: #fff; background: url(assets/background.jpg);}
+    #score {position: absolute; left: 0; right: 0; top: 20px; text-align: center; z-index: 2;}
+    #over {display: none; position: absolute; left: 0; right: 0; top: 0; bottom: 0; text-align: center; z-index: 1; background: rgba(0,0,0,0.5); padding-top:  116px;}
+    #over.active {display: block;}
     canvas {position: absolute; top: 0;}
   </style>
 
   <div id="score">0</div>
+  <div id="over">
+    GAME OVER
+    <form><input type="submit" value="RESTART"></form>
+  </div>
 
   <script src="three.js"></script>
   <script src="physi.js"></script>
@@ -23,7 +33,7 @@
     Physijs.scripts.worker = "physijs_worker.js";
     Physijs.scripts.ammo = "ammo.js";
 
-    var currentBox = null;
+    var currentBox = null, lost = false;
     var score = 0;
 
     var scene = new Physijs.Scene();
@@ -34,7 +44,7 @@
     scene.add(camera);
 
     var renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-    renderer.setClearColor( 0x999999 );
+    //renderer.setClearColor( 0x999999 );
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     document.body.appendChild(renderer.domElement);
@@ -91,10 +101,19 @@
     var ambient = new THREE.AmbientLight(0x909090);
     scene.add(ambient);
 
+    var spot = new THREE.SpotLight({color: 0x909090});
+    spot.position.set(10, 20, 20);
+    scene.add(spot);
+
     // lógica
     meshs.cross.addEventListener('collision', function(otherObject) {
+      console.log('collision');
       if (otherObject.name == "ground") {
-        alert("Game over!");
+        lost = true;
+        document.getElementById("over").className = "active";
+  		  var fuein = document.getElementById("fuein");
+  	    fuein.volume = 0.8;
+  	    fuein.play();
       }
     });
 
@@ -132,7 +151,7 @@
       currentBox = null;
       scene.add(meshs.boundBox);
 
-      updateScore();
+      if (!lost) updateScore();
 
     }
 
@@ -140,6 +159,9 @@
     function updateScore() {
       var container = document.getElementById("score");
       container.innerHTML = ++score;
+  	  var pop = document.getElementById("pop");
+  	  pop.volume = 0.3;
+  	  pop.play();
     }
 
     // cria uma caixa temporaria
@@ -154,7 +176,6 @@
       meshs.temp.position.set(pos.x, pos.y, 0);
       currentBox = meshs.temp;
       scene.add(currentBox);
-      console.log(currentBox.position);
     }
 
     // movimento do mouse
