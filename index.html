@@ -10,19 +10,31 @@
 
   <style>
     body {margin: 0; padding: 0;}
+    #score {position: absolute; left: 0; right: 0; top: 20px; text-align: center; z-index: 10;}
+    canvas {position: absolute; top: 0;}
   </style>
 
+  <div id="score">0</div>
+
   <script src="three.js"></script>
+  <script src="physi.js"></script>
   <script>
 
-    var scene = new THREE.Scene(); // trocar para Physijs
+    Physijs.scripts.worker = "physijs_worker.js";
+    Physijs.scripts.ammo = "ammo.js";
+
+    var currentBox = null;
+    var score = 0;
+
+    var scene = new Physijs.Scene();
+    scene.setGravity(new THREE.Vector3(0, -30, 0));
 
     var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
     camera.position.set(0,50,50)
     scene.add(camera);
 
-    var renderer = new THREE.WebGLRenderer();
-    renderer.setClearColor(0x999999);
+    var renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+    renderer.setClearColor( 0x999999 );
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     document.body.appendChild(renderer.domElement);
@@ -32,23 +44,45 @@
     var meshs = {};
 
     // chao
-    mats.ground = new THREE.MeshLambertMaterial({color: 0x992222}); // trocar para Physijs
+    mats.ground = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({color: 0x992222}),
+      {
+        restitution: 0.8,
+        friction: 0.3
+      }
+    );
+
     geos.ground = new THREE.BoxGeometry(50,1,20);
-    meshs.ground = new THREE.Mesh(geos.ground, mats.ground); // trocar para Physijs
+    meshs.ground = new Physijs.BoxMesh(geos.ground, mats.ground, 0);
     meshs.ground.position.y = -0.5;
+    meshs.ground.name = "ground";
     scene.add(meshs.ground);
 
     // suporte
-    mats.stand = new THREE.MeshLambertMaterial({color: 0x881111}); // trocar para Physijs
+    mats.stand = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({color: 0x881111}),
+      {
+        restitution: 0,
+        friction: 1
+      }
+    );
     geos.stand = new THREE.BoxGeometry(5,10,5);
-    meshs.stand = new THREE.Mesh(geos.stand, mats.stand); // trocar para Physijs
+    meshs.stand = new Physijs.BoxMesh(geos.stand, mats.stand);
     meshs.stand.position.y = 5;
     scene.add(meshs.stand);
 
     // trave
-    mats.cross = new THREE.MeshLambertMaterial({color: 0xbb8888}); // trocar para Physijs
+    mats.cross = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({
+        color: 0xbb8888
+      }),
+      {
+        restitution: 0,
+        friction: 1
+      }
+    );
     geos.cross = new THREE.BoxGeometry(50,3,3);
-    meshs.cross = new THREE.Mesh(geos.cross, mats.cross); // trocar para Physijs
+    meshs.cross = new Physijs.BoxMesh(geos.cross, mats.cross);
     meshs.cross.position.y = 12;
     scene.add(meshs.cross);
 
@@ -57,9 +91,88 @@
     var ambient = new THREE.AmbientLight(0x909090);
     scene.add(ambient);
 
+    // lógica
+    meshs.cross.addEventListener('collision', function(otherObject) {
+      if (otherObject.name == "ground") {
+        alert("Game over!");
+      }
+    });
+
+    // retorna x,y dada posicao do mouse
+    function positionFromCursor(event) {
+      // ajustar coordenadas
+      var x = (event.clientX/window.innerWidth) * 2 - 1;
+      var y = - (event.clientY/window.innerHeight) * 2 + 1;
+      // criar a posicao x,y no mundo do mouse
+      var vector = new THREE.Vector3(x, y, 0);
+      vector.unproject(camera);
+      var dir = vector.sub(camera.position).normalize();
+      var distance = - camera.position.z / dir.z;
+      return camera.position.clone().add(dir.multiplyScalar(distance));
+    }
+
+    // click do mouse
+    function handleClick(event) {
+      if (currentBox == null) return;
+      mats.boundBox = Physijs.createMaterial(
+        new THREE.MeshLambertMaterial({
+          color: currentBox.material.color
+        }),
+        {
+          restitution: 0,
+          friction: 1
+        }
+      );
+      geos.boundBox = currentBox.geometry.clone();
+      meshs.boundBox = new Physijs.BoxMesh(geos.boundBox, mats.boundBox);
+      meshs.boundBox.position.set(currentBox.position.x,
+                                 currentBox.position.y,
+                                 currentBox.position.z);
+      scene.remove(currentBox);
+      currentBox = null;
+      scene.add(meshs.boundBox);
+
+      updateScore();
+
+    }
+
+    // atualiza pontuacao
+    function updateScore() {
+      var container = document.getElementById("score");
+      container.innerHTML = ++score;
+    }
+
+    // cria uma caixa temporaria
+    function createBox(event) {
+      var pos = positionFromCursor(event);
+      var max = 7;
+      var min = 3;
+      var random = Math.floor(Math.random() * (max - min + 1)) + min;
+      mats.temp = new THREE.MeshLambertMaterial({color: 0xff0000 + Math.random() * 0x99ff});
+      geos.temp = new THREE.BoxGeometry(random,random,random);
+      meshs.temp = new THREE.Mesh(geos.temp, mats.temp);
+      meshs.temp.position.set(pos.x, pos.y, 0);
+      currentBox = meshs.temp;
+      scene.add(currentBox);
+      console.log(currentBox.position);
+    }
+
+    // movimento do mouse
+    function handleMove(event) {
+      if (currentBox == null) {
+        createBox(event);
+      }
+      var pos = positionFromCursor(event);
+      currentBox.position.set(pos.x, pos.y, pos.z);
+    }
+
+    // binds
+    document.body.addEventListener("mousedown", handleClick, false);
+    document.body.addEventListener("mousemove", handleMove, false);
+
     // render
     function render() {
-      // incluir calculo Physijs
+      scene.simulate();
       renderer.render(scene, camera);
       requestAnimationFrame(render);
     }
